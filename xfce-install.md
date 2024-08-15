@@ -43,9 +43,10 @@ arch-chroot /mnt
 
 8. Enable swapfile
 ```
-fallocate -l 2G /swapfile
+fallocate -l 16G /swapfile
 chmod 600 /swapfile
 echo '/swapfile none swap sw 0 0' | tee -a /etc/fstab
+swapon /swapfile
 ```
 
 11. System locale - uncomment desired locales in `/etc/locale.gen`:
