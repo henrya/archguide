@@ -201,6 +201,12 @@ sudo pacman -S wget wpa_supplicant net-tools rsync ethtool chromium
 sudo pacman -S libva-utils intel-media-driver intel-gpu-tools
 ```
 
+13. Add support for printers
+```
+sudo pacman -S cups cups-filters cups-pdf system-config-printer --needed
+sudo systemctl enable cups.service
+```
+
 13. Reboot
 ```
 reboot
