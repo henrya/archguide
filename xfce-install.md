@@ -44,6 +44,7 @@ arch-chroot /mnt
 8. Enable swapfile
 ```
 fallocate -l 16G /swapfile
+mkswap /swapfile
 chmod 600 /swapfile
 echo '/swapfile none swap sw 0 0' | tee -a /etc/fstab
 swapon /swapfile
@@ -78,7 +79,7 @@ nano /etc/hosts
 
 # 127.0.0.1    localhost
 # ::1          localhost
-# 127.0.1.1    draemon
+# 127.0.0.1    draemon
 ```
 
 15. Add new user into group:
@@ -109,6 +110,7 @@ mkinitcpio -p linux
 
 19. Install sbctl (secure boot support)
 ```
+pacman -S sbctl
 sbctl status
 sbctl create-keys
 sbctl enroll-keys -m
@@ -120,7 +122,7 @@ sbctl sign /boot/vmlinuz-linux-lts
 
 20. Install networkmanager and related utilities:
 ```
-pacman -S dhcpcd networkmanager resolvconf
+pacman -S dhcpcd networkmanager resolvconf openssh
 systemctl enable sshd
 systemctl enable dhcpcd
 systemctl enable NetworkManager
@@ -139,7 +141,7 @@ reboot
 
 1. Enable NTP synchronization
 ```
-timedatectl set-ntp true
+sudo timedatectl set-ntp true
 ```
 
 2. Connect to WiFi
@@ -154,7 +156,7 @@ sudo pacman -S --needed xorg xf86-video-intel
 
 4. Install Xfce:
 ```
-sudo pacman -S --needed xfce4-goodies file-roller network-manager-applet leafpad epdfview galculator lightdm lightdm-gtk-greeter lightdm-gtk-greeter-settings capitaine-cursors arc-gtk-theme papirus-icon-theme xdg-user-dirs-gtk dbus gvfs
+sudo pacman -S --needed xfce4 xfce4-goodies file-roller network-manager-applet leafpad galculator lightdm lightdm-gtk-greeter lightdm-gtk-greeter-settings capitaine-cursors papirus-icon-theme xdg-user-dirs-gtk dbus gvfs
 ```
 
 5. Enable display and network manager
@@ -171,9 +173,9 @@ sudo systemctl enable bluetooth
 
 7. Setup sound:
 ```
-sudo pacman -S pipewire pipewire-pulse
+sudo pacman -S pipewire pipewire-pulse pavucontrol
 sudo pacman -S wireplumber
-systemctl --user --now enable pipewire pipewire-pulse pavucontrol wireplumber
+systemctl --user --now enable pipewire pipewire-pulse wireplumber
 ```
 
 9. Automatically mount USB devices
@@ -187,7 +189,7 @@ sudo cp /usr/lib/udev/rules.d/80-udisks2.rules /etc/udev/rules.d/80-udisks2.rule
 ```
 sudo pacman -S noto-fonts noto-fonts-extra noto-fonts-emoji ttf-ubuntu-font-family ttf-dejavu ttf-freefont
 sudo pacman -S ttf-liberation ttf-droid ttf-roboto terminus-font
-sudo pacman -S ttf-bitstream-vera ttf-inconsolata ttf-ubuntu-font-family ttf-dejavu ttf-freefont ttf-linux-libertine
+sudo pacman -S ttf-bitstream-vera ttf-inconsolata ttf-dejavu ttf-linux-libertine
 ```
 
 11. Install other useful packages:
