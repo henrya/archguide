@@ -120,7 +120,12 @@ sbctl sign /boot/vmlinuz-linux
 sbctl sign /boot/vmlinuz-linux-lts
 ```
 
-20. Install networkmanager and related utilities:
+20. Enable TRIM timer for SSD
+```
+systemctl enable --now fstrim.timer
+```
+
+21. Install networkmanager and related utilities:
 ```
 pacman -S dhcpcd networkmanager resolvconf openssh
 systemctl enable sshd
@@ -129,7 +134,7 @@ systemctl enable NetworkManager
 systemctl enable systemd-resolved
 ```
 
-21. Exit chroot, unmount all disks and reboot:
+22. Exit chroot, unmount all disks and reboot:
 ```
 exit
 umount /mnt/boot/efi
