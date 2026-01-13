@@ -1,6 +1,6 @@
 ## Step 1 (Installation media)
 
-1. Connect to Wifi
+1. Connect to Wifi (if not wired)
 ```
 iwctl
 [iwd]# station wlan0 get-networks
@@ -10,12 +10,14 @@ ping 1.1.1.1
 ```
 
 2. Sync arch packages
-
 ```
 pacman -Syy
 ```
 
-3. Create partitions using `fdisk` or `cfdisk` utility. You may skip this step if partitions are already created.
+3. Create partitions using `cfdisk` (recommended) or `fdisk`.
+*   Note: This guide assumes a UEFI system.
+*   Partition 1: EFI System Partition (at least 512MB, type `EFI System`)
+*   Partition 2: Root Partition (remaining space, type `Linux filesystem`)
 
 4. Create filesystems
 ```
@@ -30,319 +32,267 @@ mkdir -p /mnt/boot/efi        # create efi folder
 mount /dev/nvme0n1p1 /mnt/boot/efi
 ```
 
-6. Install main  packages
+6. Install main packages
+*   Using `linux-lts` is recommended for stability.
 ```
-pacstrap -i /mnt base linux linux-firmware linux-headers linux-lts linux-lts-headers sudo vim nano
-genfstab -U -p /mnt > /mnt/etc/fstab
+pacstrap -K /mnt base linux linux-firmware linux-headers linux-lts linux-lts-headers sudo vim nano base-devel
+genfstab -U /mnt > /mnt/etc/fstab
 ```
 
-7. Chroot:
+7. Chroot into the new system:
 ```
 arch-chroot /mnt
 ```
 
-8. Enable swapfile
+8. Enable swapfile (Optional but recommended)
+*   **Note:** If using Btrfs, `fallocate` cannot be used for swapfiles. Use `dd` instead or follow Btrfs specific guides.
 ```
-fallocate -l 16G /swapfile
-mkswap /swapfile
+dd if=/dev/zero of=/swapfile bs=1M count=16384 status=progress
 chmod 600 /swapfile
-echo '/swapfile none swap sw 0 0' | tee -a /etc/fstab
+mkswap /swapfile
 swapon /swapfile
+echo '/swapfile none swap sw 0 0' | tee -a /etc/fstab
 ```
 
-11. System locale - uncomment desired locales in `/etc/locale.gen`:
+9. System locale - uncomment desired locales in `/etc/locale.gen` (e.g., `en_US.UTF-8 UTF-8`):
 ```
 nano /etc/locale.gen
 locale-gen
 ```
 
-12. Configure timezone, set your own:
+10. Configure timezone:
 ```
 echo "LANG=en_US.UTF-8" > /etc/locale.conf
 ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime
+hwclock --systohc
 ```
 
-13. Set keyboard layout (jp106 for japanese)
+11. Set keyboard layout (jp106 for Japanese, skip or set `us` for US):
 ```
 echo "KEYMAP=jp106" > /etc/vconsole.conf 
 ```
 
-14. Sync hwclock
+12. Networking Setup
+*   Set hostname:
 ```
-hwclock --systohc
+echo "archlinux" > /etc/hostname
 ```
-
-15. Add the host name in `/etc/hosts`:
+*   Edit hosts file:
 ```
-echo draemon > /etc/hostname
 nano /etc/hosts
-
 # 127.0.0.1    localhost
 # ::1          localhost
-# 127.0.0.1    draemon
+# 127.0.0.1    archlinux
 ```
 
-15. Add new user into group:
+13. User Setup
 ```
 useradd -m -g users -G wheel -s /bin/bash henrya
+passwd              # Set root password
+passwd henrya       # Set user password
+```
+*   Enable sudo for wheel group:
+```
+EDITOR=nano visudo
+# Uncomment: %wheel ALL=(ALL) ALL
 ```
 
-16. Setup ruser password:
-```
-passwd
-passwd henrya
-```
-
-17. Add wheel group in sudoers:
-```
-nano /etc/sudoers
-# uncomment this line in file:
-# %wheel ALL=(ALL) ALL
-```
-
-18. Install and configure grub:
+14. Install and configure Bootloader (GRUB)
 ```
 pacman -S grub efibootmgr os-prober mtools dosfstools
 grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=Arch --modules="tpm" --disable-shim-lock
 grub-mkconfig -o /boot/grub/grub.cfg
-mkinitcpio -p linux
+mkinitcpio -P
 ```
 
-19. Install sbctl (secure boot support)
+15. Secure Boot (Optional, via `sbctl`)
+*   Only proceed if you are in Setup Mode in BIOS.
 ```
 pacman -S sbctl
 sbctl status
 sbctl create-keys
 sbctl enroll-keys -m
-## sign the efi 
 sbctl sign -s /boot/efi/EFI/Arch/grubx64.efi
-sbctl sign /boot/vmlinuz-linux
-sbctl sign /boot/vmlinuz-linux-lts
+sbctl sign -s /boot/vmlinuz-linux
+sbctl sign -s /boot/vmlinuz-linux-lts
 ```
 
-20. Enable TRIM timer for SSD
+16. Install Network Manager
+*   **Important:** Do not install or enable `dhcpcd` alongside NetworkManager to avoid conflicts.
 ```
-systemctl enable --now fstrim.timer
-```
-
-21. Install networkmanager and related utilities:
-```
-pacman -S dhcpcd networkmanager resolvconf openssh
-systemctl enable sshd
-systemctl enable dhcpcd
+pacman -S networkmanager openssh
 systemctl enable NetworkManager
-systemctl enable systemd-resolved
+systemctl enable sshd
 ```
 
-22. Exit chroot, unmount all disks and reboot:
+17. Enable TRIM (for SSDs)
+```
+systemctl enable fstrim.timer
+```
+
+18. Exit and Reboot
 ```
 exit
-umount /mnt/boot/efi
-umount /mnt
+umount -R /mnt
 reboot
 ```
 
-## Step 2 (Install the system)
+## Step 2 (Post-Installation)
 
-1. Enable NTP synchronization
-```
-sudo timedatectl set-ntp true
-```
-
-2. Connect to WiFi
+1. Connect to WiFi
 ```
 nmcli device wifi connect <SSID> password <password>
 ```
 
-3. Install Xorg:
+2. Enable NTP
 ```
-sudo pacman -S --needed xorg xf86-video-intel
-```
-
-4. Install Xfce:
-```
-sudo pacman -S --needed xfce4 xfce4-goodies file-roller network-manager-applet leafpad galculator lightdm lightdm-gtk-greeter lightdm-gtk-greeter-settings capitaine-cursors papirus-icon-theme xdg-user-dirs-gtk dbus gvfs
+sudo timedatectl set-ntp true
 ```
 
-5. Enable display and network manager
+3. Install Xorg and Video Drivers
+*   **Note:** `xf86-video-intel` is generally discouraged for modern Intel CPUs (Gen 3+). The `modesetting` driver (built-in) is preferred.
+```
+sudo pacman -S xorg-server xorg-apps
+```
+*   (Optional) If you specifically need Intel drivers for older hardware: `sudo pacman -S xf86-video-intel`
+
+4. Install XFCE Desktop
+```
+sudo pacman -S xfce4 xfce4-goodies file-roller network-manager-applet leafpad galculator lightdm lightdm-gtk-greeter lightdm-gtk-greeter-settings capitaine-cursors papirus-icon-theme xdg-user-dirs-gtk dbus gvfs
+```
+
+5. Enable Display Manager
 ```
 sudo systemctl enable lightdm
-sudo systemctl enable NetworkManager
 ```
 
-6. Setup bluetooth:
+6. Setup Bluetooth
 ```
 sudo pacman -S bluez bluez-utils blueman
 sudo systemctl enable bluetooth
 ```
 
-7. Setup sound:
+7. Setup Audio (Pipewire)
 ```
-sudo pacman -S pipewire pipewire-pulse pavucontrol
-sudo pacman -S wireplumber
+sudo pacman -S pipewire pipewire-pulse wireplumber pavucontrol
 systemctl --user --now enable pipewire pipewire-pulse wireplumber
 ```
 
-9. Automatically mount USB devices
+8. Auto-mount USB storage
 ```
 sudo pacman -S udisks2
-cat /etc/udev/rules.d/80-udisks2.rules ## should be empty
-sudo cp /usr/lib/udev/rules.d/80-udisks2.rules /etc/udev/rules.d/80-udisks2.rules
+systemctl enable udisks2
 ```
 
-10. Install essential fonts:
+9. Install Fonts
 ```
-sudo pacman -S noto-fonts noto-fonts-extra noto-fonts-emoji ttf-ubuntu-font-family ttf-dejavu ttf-freefont
-sudo pacman -S ttf-liberation ttf-droid ttf-roboto terminus-font
-sudo pacman -S ttf-bitstream-vera ttf-inconsolata ttf-dejavu ttf-linux-libertine
+sudo pacman -S noto-fonts noto-fonts-extra noto-fonts-emoji ttf-ubuntu-font-family ttf-dejavu ttf-liberation ttf-droid ttf-roboto terminus-font
 ```
 
-11. Install other useful packages:
+10. Useful Utilities
 ```
-sudo pacman -S intel-ucode git bash-completion base-devel lshw zip unzip htop inxi iftop
-sudo pacman -S wget wpa_supplicant net-tools rsync ethtool chromium
+sudo pacman -S intel-ucode git bash-completion lshw zip unzip htop inxi iftop wget net-tools rsync ethtool chromium
 ```
 
-12. GPU video decoding (vaapi):
+11. Hardware Acceleration (VA-API for Intel)
 ```
 sudo pacman -S libva-utils intel-media-driver intel-gpu-tools
 ```
 
-13. Add support for printers
+12. Printing Support
 ```
-sudo pacman -S cups cups-filters cups-pdf system-config-printer --needed
-sudo systemctl enable cups.service
+sudo pacman -S cups cups-filters cups-pdf system-config-printer
+sudo systemctl enable cups
 ```
 
-13. Reboot
+13. Reboot to Graphical Interface
 ```
 reboot
 ```
 
-## Step 3 Enable hibernatiobn
+## Step 3 (Enable Hibernation)
 
-1. Get partition uuid:
-Open `/etc/fstab` and get the root partition uuid or swap parition uuid.
+1. Get UUIDs
+```
+lsblk -f
+# Identify the UUID of your swap partition/file and root partition
+```
 
-2. Modify grub configuration
-Open grub configuration file:
+2. Edit GRUB
 ```
 sudo nano /etc/default/grub
 ```
-3. Modify `/etc/default/grub`
+*   Append to `GRUB_CMDLINE_LINUX_DEFAULT`:
+    `resume=UUID=<swap_partition_uuid>` 
+    *   (Or if using swapfile on root: `resume=UUID=<root_partition_uuid> resume_offset=<offset>`)
 
-Insert `resume=UUID=<uuid of root or swap from /etc/fstab>` after `GRUB_CMDLINE_LINUX_DEFAULT="..."`
-
-4. Get the `resume_offset` if `/swapfile` exists
+3. Calculate Swapfile Offset (if using swapfile)
 ```
 sudo filefrag -v /swapfile | awk '$1=="0:" {print substr($4, 1, length($4)-2)}'
 ```
 
-5. Add `resume_offset` in `/etc/default/grub` if `/swapfile` exists
-Open grub configuration and add offset
-
-```
-sudo nano /etc/default/grub
-```
-
-Insert `resume_offset=<offset of the /swapfile>`
-
-6. Regenerate grub config:
+4. Regenerate GRUB
 ```
 sudo grub-mkconfig -o /boot/grub/grub.cfg
 ```
 
-
-7. Edit mkinitcpio configuration
+5. Edit `mkinitcpio.conf`
 ```
 sudo nano /etc/mkinitcpio.conf
 ```
+*   Add `resume` hook **AFTER** `udev` and **BEFORE** `filesystems`.
+*   Example: `HOOKS=(base udev autodetect modconf block resume filesystems keyboard fsck)`
 
-8. Find hooks `HOOKS="base udev autodetect modconf block filesystems keyboard fsck"`
-
-9. After `filesystems` insert hook `resume` 
-
-10. Regenerate initramfs:
+6. Regenerate Initramfs
 ```
-sudo mkinitcpio -p linux
+sudo mkinitcpio -P
 ```
 
-11. Display suspend option in XFCE
-```
-xfconf-query -c xfce4-session -np '/shutdown/ShowSuspend' -t 'bool' -s 'true'
-```
+## Step 4 (Graphical Boot Splash - Plymouth)
 
-12. Reboot
-```
-reboot
-```
-
-## Step 4 Enable Graphical boot splash screen
-1. Install plymouth
+1. Install Plymouth
 ```
 sudo pacman -S plymouth
 ```
 
-2.  Edit `/etc/plymouth/plymouthd.conf `and set the new theme 
-
+2. Configure Theme
 ```
 sudo nano /etc/plymouth/plymouthd.conf
+# [Daemon]
+# Theme=bgrt
 ```
 
-3. Add the following contents:
+3. Edit `mkinitcpio.conf`
+*   Add `plymouth` hook **AFTER** `base` and `udev`.
+*   Example: `HOOKS=(base udev plymouth autodetect ...)`
 
+4. Regenerate Initramfs
 ```
-[Daemon]
-Theme=bgrt
+sudo mkinitcpio -P
 ```
 
-4. Open grub configuration
-
+5. Edit GRUB for Silent Boot
 ```
 sudo nano /etc/default/grub
+# Add 'quiet splash loglevel=3 rd.udev.log_priority=3 vt.global_cursor_default=0' to GRUB_CMDLINE_LINUX_DEFAULT
 ```
 
-5. Change loglevel to avoid verbose output
-
-In  `GRUB_CMDLINE_LINUX_DEFAULT` add or edit the following `loglevel=3`
-
-6. Regenerate grub config:
+6. Regenerate GRUB
 ```
 sudo grub-mkconfig -o /boot/grub/grub.cfg
 ```
 
-7. Edit mkinitcpio configuration
-```
-sudo nano /etc/mkinitcpio.conf
-```
+## Step 5 (Optional - AUR & Japanese)
 
-8. Find hooks `HOOKS="base udev autodetect modconf block filesystems keyboard fsck"`
-
-9. After `udev` insert hook `plymouth` 
-
-10. Regenerate initramfs:
-```
-sudo mkinitcpio -p linux
-```
-
-## Step 5 Optional steps
-
-1. Install AUR package manager
-
+1. Install `yay` (AUR Helper)
 ```
 git clone https://aur.archlinux.org/yay.git
 cd yay
 makepkg -si
 ```
 
-2. Install pamac
-
+2. Install Japanese Fonts & IME
 ```
-yay -S libpamac-aur pamac-aur
-```
-
-3. Install East-Asian / Japanese fonts
-
-```
-pacman -S noto-fonts-cjk noto-fonts-emoji adobe-source-han-sans-jp-fonts adobe-source-han-serif-jp-fonts otf-ipafont
+sudo pacman -S noto-fonts-cjk adobe-source-han-sans-jp-fonts adobe-source-han-serif-jp-fonts otf-ipafont
+# Consider installing fcitx5-im and fcitx5-mozc for input
 ```
